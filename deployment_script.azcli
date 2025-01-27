@@ -1,0 +1,28 @@
+# Prérequis
+#.NET SDK 8.0 installed https://dotnet.microsoft.com/en-us/download
+# Azure Functions Core Tools installed https://github.com/Azure/azure-functions-core-tools/tree/v4.x
+# Azure CLI installed https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
+
+#Login Azure
+az login
+
+# Créez un groupe de ressources
+az group create --name testazurefunctions-rg --location francecentral
+
+# Déployez le fichier Bicep avec un paramètre
+az deployment group create --resource-group testazurefunctions-rg --template-file main.bicep --parameters functionAppName=testfuncmimott
+
+# Initialisation d'un projet de fonction isolated
+func init MyFunctionApp --worker-runtime dotnet-isolated --functions-version 4
+
+# Déplacement dans le répertoire du projet
+cd MyFunctionApp
+
+# Création d'une function HttpTrigger
+func new --name MyHttpTrigger --template "HTTP trigger" --worker-runtime dotnet-isolated
+
+# Tester la fonction localement
+func start
+
+# Publier la fonction sur Azure en précisant le nom de la functionApp
+func azure functionapp publish testfuncmimott
