@@ -1,28 +1,62 @@
-# Prérequis
+# Prerequisites
+
 # .NET SDK 8.0 installed https://dotnet.microsoft.com/en-us/download
 # Azure Functions Core Tools installed https://github.com/Azure/azure-functions-core-tools/tree/v4.x
 # Azure CLI installed https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
 
-# Login Azure
+RESOURCEGROUPNAME="testazurefunctions-rg"
+FUNCTIONNAME="testfuncmimott"
+STORAGEACCOUNTNAME="testfuncmimottstoracct"
+
+# Login to Azure
 az login
 
-# Créez un groupe de ressources
-az group create --name testazurefunctions-rg --location francecentral
+# Create a resource group for our project
+az group create --name $RESOURCEGROUPNAME --location francecentral
 
-# Déployez le fichier Bicep avec un paramètre
-az deployment group create --resource-group testazurefunctions-rg --template-file main.bicep --parameters functionAppName=testfuncmimott
+# Deployment of the Bicep template to our group
+az deployment group create --resource-group $RESOURCEGROUPNAME --template-file main.bicep --parameters functionAppName=$FUNCTIONNAME storageAccountName=$STORAGEACCOUNTNAME
 
-# Initialisation d'un projet de fonction isolated
-func init MyFunctionApp --worker-runtime dotnet-isolated --functions-version 4
+# Initialize a new Azure Functions project
+func init MyFunctionApp --worker-runtime dotnet-isolated --functions-version 4 --target-framework net9.0
 
-# Déplacement dans le répertoire du projet
+# Move to the project directory
 cd MyFunctionApp
 
-# Création d'une function HttpTrigger
+# Create a new function
 func new --name MyHttpTrigger --template "HTTP trigger" --worker-runtime dotnet-isolated
 
-# Tester la fonction localement
+# Test the function locally (Optimal for debugging)
 func start
 
-# Publier la fonction sur Azure en précisant le nom de la functionApp
-func azure functionapp publish testfuncmimott
+# Publish the function locally
+dotnet publish -c Release -o ./publish
+
+# Move to the publish directory
+cd publish
+
+# Generate a zip file name based of the timestamp
+FILENAME="$FUNCTIONNAME-$(date +"%Y%m%d_%H%M%S").zip"
+
+# Zip the content of the publish directory including the .azurefunctions folder
+zip -r $FILENAME . .azurefunctions
+
+# Create the container in storage account
+az storage container create --name releases --account-name $STORAGEACCOUNTNAME
+
+# Uploading the zip file to blob storage
+az storage blob upload --account-name $STORAGEACCOUNTNAME --container-name releases --file $FILENAME --name $FILENAME
+
+# Construct the full URL
+BLOBURL="https://testfuncmimottstoracct.blob.core.windows.net/releases/$FILENAME"
+
+# Put the setting on Azure Functions
+az functionapp config appsettings set --name $FUNCTIONNAME --resource-group $RESOURCEGROUPNAME --settings WEBSITE_RUN_FROM_PACKAGE=$BLOBURL
+
+# Get current subscription id
+SUBSCRIPTIONID=$(az account show --query id --output tsv)
+
+# Sync the trigger with the Azure Functions
+az rest --method post --url https://management.azure.com/subscriptions/$SUBSCRIPTIONID/resourceGroups/$RESOURCEGROUPNAME/providers/Microsoft.Web/sites/$FUNCTIONNAME/syncfunctiontriggers?api-version=2016-08-01
+
+# Voilà ! :)
