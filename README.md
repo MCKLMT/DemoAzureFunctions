@@ -47,3 +47,7 @@ It contains an Azure Bicep template for infrastructure deployment and a dotnet-i
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
+
+## Licence
+
+This project is licensed under the [MIT License](LICENSE).
